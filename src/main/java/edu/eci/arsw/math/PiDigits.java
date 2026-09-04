@@ -13,12 +13,14 @@ public class PiDigits {
 
     
     /**
-     * Returns a range of hexadecimal digits of pi.
+     * Returns a range of hexadecimal digits of pi, calculating them en paralelo
+     * mediante N hilos.
      * @param start The starting location of the range.
      * @param count The number of digits to return
+     * @param numThreads Cantidad de hilos entre los que se reparte el cálculo.
      * @return An array containing the hexadecimal digits.
      */
-    public static byte[] getDigits(int start, int count) {
+    public static byte[] getDigits(int start, int count, int numThreads) {
         if (start < 0) {
             throw new RuntimeException("Invalid Interval");
         }
@@ -27,21 +29,32 @@ public class PiDigits {
             throw new RuntimeException("Invalid Interval");
         }
 
+        if (numThreads <= 0) {
+            throw new RuntimeException("Invalid number of threads");
+        }
+
         byte[] digits = new byte[count];
-        double sum = 0;
 
-        for (int i = 0; i < count; i++) {
-            if (i % DigitsPerSum == 0) {
-                sum = 4 * sum(1, start)
-                        - 2 * sum(4, start)
-                        - sum(5, start)
-                        - sum(6, start);
+        int baseChunkSize = count / numThreads;
+        int remainder = count % numThreads;
 
-                start += DigitsPerSum;
+        PiDigitsThread[] threads = new PiDigitsThread[numThreads];
+        int offset = 0;
+
+        for (int i = 0; i < numThreads; i++) {
+            int chunkSize = baseChunkSize + (i < remainder ? 1 : 0);
+            threads[i] = new PiDigitsThread(start + offset, chunkSize, digits, offset);
+            threads[i].start();
+            offset += chunkSize;
+        }
+
+        for (PiDigitsThread thread : threads) {
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Cálculo de dígitos de pi interrumpido", e);
             }
-
-            sum = 16 * (sum - Math.floor(sum));
-            digits[i] = (byte) sum;
         }
 
         return digits;
