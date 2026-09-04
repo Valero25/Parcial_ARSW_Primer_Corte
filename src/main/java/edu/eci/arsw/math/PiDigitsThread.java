@@ -15,14 +15,16 @@ public class PiDigitsThread extends Thread {
     private final int count;
     private final byte[] digits;
     private final int offset;
+    private final PauseControl pauseControl;
 
     private volatile int digitsProcessed = 0;
 
-    public PiDigitsThread(int start, int count, byte[] digits, int offset) {
+    public PiDigitsThread(int start, int count, byte[] digits, int offset, PauseControl pauseControl) {
         this.start = start;
         this.count = count;
         this.digits = digits;
         this.offset = offset;
+        this.pauseControl = pauseControl;
     }
 
     public int getDigitsProcessed() {
@@ -35,6 +37,8 @@ public class PiDigitsThread extends Thread {
         int position = start;
 
         for (int i = 0; i < count; i++) {
+            pauseControl.awaitIfPaused();
+
             if (i % DIGITS_PER_SUM == 0) {
                 sum = 4 * PiDigits.sum(1, position)
                         - 2 * PiDigits.sum(4, position)

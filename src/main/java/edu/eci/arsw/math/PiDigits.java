@@ -1,5 +1,9 @@
 package edu.eci.arsw.math;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+
 ///  <summary>
 ///  An implementation of the Bailey-Borwein-Plouffe formula for calculating hexadecimal
 ///  digits of pi.
@@ -38,15 +42,18 @@ public class PiDigits {
         int baseChunkSize = count / numThreads;
         int remainder = count % numThreads;
 
+        PauseControl pauseControl = new PauseControl();
         PiDigitsThread[] threads = new PiDigitsThread[numThreads];
         int offset = 0;
 
         for (int i = 0; i < numThreads; i++) {
             int chunkSize = baseChunkSize + (i < remainder ? 1 : 0);
-            threads[i] = new PiDigitsThread(start + offset, chunkSize, digits, offset);
+            threads[i] = new PiDigitsThread(start + offset, chunkSize, digits, offset, pauseControl);
             threads[i].start();
             offset += chunkSize;
         }
+
+        reportProgressPeriodically(threads, pauseControl);
 
         for (PiDigitsThread thread : threads) {
             try {
@@ -58,6 +65,54 @@ public class PiDigits {
         }
 
         return digits;
+    }
+
+    /**
+     * Cada 5 segundos detiene a los hilos, imprime cuántos dígitos ha
+     * procesado cada uno, y espera a que el usuario presione ENTER para
+     * reanudar el cálculo. Se repite hasta que todos los hilos terminen.
+     */
+    private static void reportProgressPeriodically(PiDigitsThread[] threads, PauseControl pauseControl) {
+        BufferedReader consoleReader = new BufferedReader(new InputStreamReader(System.in));
+
+        while (anyAlive(threads)) {
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+
+            if (!anyAlive(threads)) {
+                break;
+            }
+
+            pauseControl.pause();
+
+            System.out.println("--- Hilos pausados ---");
+            for (int i = 0; i < threads.length; i++) {
+                System.out.println("Hilo " + i + ": " + threads[i].getDigitsProcessed() + " dígitos procesados");
+            }
+            System.out.print("Presione ENTER para continuar...");
+            System.out.flush();
+
+            try {
+                consoleReader.readLine();
+            } catch (IOException e) {
+                // Sin consola disponible: se continúa sin bloquear.
+            }
+
+            pauseControl.resume();
+        }
+    }
+
+    private static boolean anyAlive(PiDigitsThread[] threads) {
+        for (PiDigitsThread thread : threads) {
+            if (thread.isAlive()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>
